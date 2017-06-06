@@ -1,26 +1,21 @@
 /**
- * 
+ *
  */
 package com.microtripit.mandrillapp.lutung.model;
 
-import org.apache.commons.io.IOUtils;
-import org.apache.http.HttpEntity;
+import com.microtripit.mandrillapp.lutung.logging.Logger;
+import com.microtripit.mandrillapp.lutung.logging.LoggerFactory;
+import com.microtripit.mandrillapp.lutung.model.MandrillApiError.MandrillError;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.util.EntityUtils;
 
-import com.microtripit.mandrillapp.lutung.logging.Logger;
-import com.microtripit.mandrillapp.lutung.logging.LoggerFactory;
-import com.microtripit.mandrillapp.lutung.model.MandrillApiError.MandrillError;
-
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
@@ -34,109 +29,113 @@ import java.util.List;
 public final class MandrillRequestDispatcher {
     private static final Logger log = LoggerFactory.getLogger(MandrillRequestDispatcher.class);
 
-	/**
-	 * See https://hc.apache.org/httpcomponents-core-4.3.x/httpcore/apidocs/org/apache/http/params/HttpConnectionParams.html#setSoTimeout(org.apache.http.params.HttpParams, int)
-	 *
-	 * A value of 0 means no timeout at all.
-	 * The value is expressed in milliseconds.
-	 * */
-	public static int SOCKET_TIMEOUT_MILLIS = 0;
+    /**
+     * See https://hc.apache.org/httpcomponents-core-4.3.x/httpcore/apidocs/org/apache/http/params/HttpConnectionParams.html#setSoTimeout(org.apache.http.params.HttpParams, int)
+     * <p>
+     * A value of 0 means no timeout at all.
+     * The value is expressed in milliseconds.
+     */
+    public static int SOCKET_TIMEOUT_MILLIS = 0;
 
-	/**
-	 * See https://hc.apache.org/httpcomponents-core-4.3.x/httpcore/apidocs/org/apache/http/params/HttpConnectionParams.html#setConnectionTimeout(org.apache.http.params.HttpParams, int)
-	 *
-	 * A value of 0 means no timeout at all.
-	 * The value is expressed in milliseconds.
-	 * */
-	public static int CONNECTION_TIMEOUT_MILLIS = 0;
-	
-	
-	private static CloseableHttpClient httpClient;
-	private static PoolingHttpClientConnectionManager connexionManager;
-	private static RequestConfig defaultRequestConfig;
+    /**
+     * See https://hc.apache.org/httpcomponents-core-4.3.x/httpcore/apidocs/org/apache/http/params/HttpConnectionParams.html#setConnectionTimeout(org.apache.http.params.HttpParams, int)
+     * <p>
+     * A value of 0 means no timeout at all.
+     * The value is expressed in milliseconds.
+     */
+    public static int CONNECTION_TIMEOUT_MILLIS = 0;
 
-	static {
-		connexionManager = new PoolingHttpClientConnectionManager();
-		connexionManager.setDefaultMaxPerRoute(50);
-		defaultRequestConfig = RequestConfig.custom()
-				.setSocketTimeout(SOCKET_TIMEOUT_MILLIS)
-				.setConnectTimeout(CONNECTION_TIMEOUT_MILLIS)
-				.setConnectionRequestTimeout(CONNECTION_TIMEOUT_MILLIS).build();
-		httpClient = HttpClients.custom().setUserAgent("/Lutung-0.1")
-				.setDefaultRequestConfig(defaultRequestConfig)
-				.setConnectionManager(connexionManager).useSystemProperties()
-				.build();
-	}
 
-	public static final <T> T execute(final RequestModel<T> requestModel) throws MandrillApiError, IOException {
+    private static CloseableHttpClient httpClient;
+    private static PoolingHttpClientConnectionManager connexionManager;
+    private static RequestConfig defaultRequestConfig;
 
-		HttpResponse response = null;
-		String responseString = null;
-		try {
-			// use proxy?
-			final ProxyData proxyData = detectProxyServer(requestModel.getUrl());
-			if (proxyData != null) {
-				if (log.isDebugEnabled()) {
-					log.debug(String.format("Using proxy @" + proxyData.host
-							+ ":" + String.valueOf(proxyData.port)));
-				}
-				final HttpHost proxy = new HttpHost(proxyData.host,
-						proxyData.port);
-				httpClient.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY,
-						proxy);
-			}
-            log.debug("starting request '" +requestModel.getUrl()+ "'");
-			response = httpClient.execute( requestModel.getRequest() );
-			final StatusLine status = response.getStatusLine();
-			responseString = EntityUtils.toString(response.getEntity());
-			if( requestModel.validateResponseStatus(status.getStatusCode()) ) {
-				try {
-					return requestModel.handleResponse( responseString );
-					
-				} catch(final HandleResponseException e) {
-					throw new IOException(
-							"Failed to parse response from request '" 
-							+requestModel.getUrl()+ "'", e);
-					
-				}
-				
-			} else {
-				// ==> compile mandrill error!
-				MandrillError error = null;
-				try {
-				    error = LutungGsonUtils.getGson()
-						.fromJson(responseString, MandrillError.class);
-				} catch (Throwable ex) {
-				    error = new MandrillError("Invalid Error Format",
-				                              "Invalid Error Format",
-				                              responseString,
-				                              status.getStatusCode());
-				}
+    static {
+        connexionManager = new PoolingHttpClientConnectionManager();
+        connexionManager.setDefaultMaxPerRoute(50);
+        defaultRequestConfig = RequestConfig.custom()
+                .setSocketTimeout(SOCKET_TIMEOUT_MILLIS)
+                .setConnectTimeout(CONNECTION_TIMEOUT_MILLIS)
+                .setConnectionRequestTimeout(CONNECTION_TIMEOUT_MILLIS).build();
+        httpClient = HttpClients.custom().setUserAgent("/Lutung-0.1")
+                .setDefaultRequestConfig(defaultRequestConfig)
+                .setConnectionManager(connexionManager).useSystemProperties()
+                .build();
+    }
 
-				throw new MandrillApiError(
-						"Unexpected http status in response: " 
-						+status.getStatusCode()+ " (" 
-						+status.getReasonPhrase()+ ")").withError(error);
-				
-			}
-				
-		} finally {
-			try {
-				EntityUtils.consume(response.getEntity());
-			} catch (IOException e) {
-				log.error("Error consuming entity", e);
-				throw e;
-			}
-		}
-	}
+    public static final <T> T execute(final RequestModel<T> requestModel) throws MandrillApiError, IOException {
+
+        HttpResponse response = null;
+        String responseString = null;
+        try {
+            // use proxy?
+            final ProxyData proxyData = detectProxyServer(requestModel.getUrl());
+            if (proxyData != null) {
+                if (log.isDebugEnabled()) {
+                    log.debug(String.format("Using proxy @" + proxyData.host
+                            + ":" + String.valueOf(proxyData.port)));
+                }
+                final HttpHost proxy = new HttpHost(proxyData.host,
+                        proxyData.port);
+
+                RequestConfig config = RequestConfig.custom()
+                        .setProxy(proxy)
+                        .build();
+
+                requestModel.getRequest().setConfig(config);
+            }
+            log.debug("starting request '" + requestModel.getUrl() + "'");
+            response = httpClient.execute(requestModel.getRequest());
+            final StatusLine status = response.getStatusLine();
+            responseString = EntityUtils.toString(response.getEntity());
+            if (requestModel.validateResponseStatus(status.getStatusCode())) {
+                try {
+                    return requestModel.handleResponse(responseString);
+
+                } catch (final HandleResponseException e) {
+                    throw new IOException(
+                            "Failed to parse response from request '"
+                                    + requestModel.getUrl() + "'", e);
+
+                }
+
+            } else {
+                // ==> compile mandrill error!
+                MandrillError error = null;
+                try {
+                    error = LutungGsonUtils.getGson()
+                            .fromJson(responseString, MandrillError.class);
+                } catch (Throwable ex) {
+                    error = new MandrillError("Invalid Error Format",
+                            "Invalid Error Format",
+                            responseString,
+                            status.getStatusCode());
+                }
+
+                throw new MandrillApiError(
+                        "Unexpected http status in response: "
+                                + status.getStatusCode() + " ("
+                                + status.getReasonPhrase() + ")").withError(error);
+
+            }
+
+        } finally {
+            try {
+                EntityUtils.consume(response.getEntity());
+            } catch (IOException e) {
+                log.error("Error consuming entity", e);
+                throw e;
+            }
+        }
+    }
 
     private static final ProxyData detectProxyServer(final String url) {
         try {
             final List<Proxy> proxies = ProxySelector.getDefault().select(new URI(url));
-            if(proxies != null) {
-                for(Proxy proxy : proxies) {
+            if (proxies != null) {
+                for (Proxy proxy : proxies) {
                     InetSocketAddress addr = (InetSocketAddress) proxy.address();
-                    if(addr != null) {
+                    if (addr != null) {
                         return new ProxyData(addr.getHostName(), addr.getPort());
                     }
                 }

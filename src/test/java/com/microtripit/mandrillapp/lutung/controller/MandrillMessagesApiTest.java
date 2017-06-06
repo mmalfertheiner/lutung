@@ -3,28 +3,18 @@
  */
 package com.microtripit.mandrillapp.lutung.controller;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-
-import org.junit.Assume;
-import org.junit.Test;
-
 import com.microtripit.mandrillapp.lutung.MandrillTestCase;
 import com.microtripit.mandrillapp.lutung.model.MandrillApiError;
-import com.microtripit.mandrillapp.lutung.view.MandrillMessage;
+import com.microtripit.mandrillapp.lutung.view.*;
 import com.microtripit.mandrillapp.lutung.view.MandrillMessage.Recipient;
 import com.microtripit.mandrillapp.lutung.view.MandrillMessage.Recipient.Type;
-import com.microtripit.mandrillapp.lutung.view.MandrillMessageContent;
-import com.microtripit.mandrillapp.lutung.view.MandrillMessageInfo;
-import com.microtripit.mandrillapp.lutung.view.MandrillMessageStatus;
-import com.microtripit.mandrillapp.lutung.view.MandrillSearchMessageParams;
-import com.microtripit.mandrillapp.lutung.view.MandrillTemplate;
-
 import junit.framework.Assert;
+import org.junit.Assume;
+import org.junit.Ignore;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.util.*;
 
 /**
  * <p>Tests for the messages api implementations.</p>
@@ -129,6 +119,7 @@ public final class MandrillMessagesApiTest extends MandrillTestCase {
 	}
 
     @Test
+	@Ignore
     public void testContent01() throws Exception {
         // The content call only works on 'recently sent' messages.  So get a listing
         // of messages from the last 6 hours, and try to get their content.
